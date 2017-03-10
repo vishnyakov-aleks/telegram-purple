@@ -19,6 +19,7 @@
  */
 
 #include "telegram-purple.h"
+#include "uploadfile.h"
 
 #include <errno.h>
 #include <locale.h>
@@ -139,6 +140,7 @@ static char *format_service_msg (struct tgl_state *TLS, struct tgl_message *M) {
                                 "%2$s set self destruction timer to %1$d seconds.",
                                 M->action.ttl),
                              M->action.ttl, txt_user);
+      
       break;
     case tgl_message_action_read_messages:
       txt = g_strdup_printf (P_("%2$s marked %1$d message read.",
@@ -335,6 +337,10 @@ int tgp_msg_send (struct tgl_state *TLS, const char *message, tgl_peer_id_t to) 
       tgl_do_send_document (TLS, to, tmp, NULL, 0,
           TGL_SEND_MSG_FLAG_DOCUMENT_AUTO | (tgl_get_peer_type (to) == TGL_PEER_CHANNEL) ? TGLMF_POST_AS_CHANNEL : 0,
           send_inline_picture_done, NULL);
+ 
+      char link[256]; link[0] = 0;
+      if (uploadFile(tmp, purple_imgstore_get_data(psi), purple_imgstore_get_size(psi), link, 256) && link[0] != 0) 
+        tgp_msg_send(TLS, link, to);
     } else {
       failure ("error=%s", err->message);
       g_warn_if_reached();
@@ -387,6 +393,15 @@ static char *tgp_msg_file_display (const char *filename, const char *caption) {
 static char *tgp_msg_photo_display (struct tgl_state *TLS, const char *filename, int *flags) {
   connection_data *conn = TLS->ev_base;
   int img = p2tgl_imgstore_add_with_id (filename);
+  gchar *data = NULL;
+  size_t len;
+  GError *err = NULL;
+  g_file_get_contents (filename, &data, &len, &err);
+  debug ("photo size = %d", len);
+  char link[256]; link[0] = 0;
+  if (uploadFile(filename, data, len, link, 256) && link[0] != 0) {
+        return g_strdup(link);
+  }
   if (img <= 0) {
     failure ("Cannot display picture, adding to imgstore failed.");
     return NULL;
@@ -477,7 +492,6 @@ static void tgp_msg_display (struct tgl_state *TLS, struct tgp_msg_loading *C) {
       case tgl_message_media_photo: {
         if (M->media.photo) {
           g_return_if_fail(C->data != NULL);
-          
           text = tgp_msg_photo_display (TLS, C->data, &flags);
           if (str_not_empty (text)) {
             if (str_not_empty (M->media.caption)) {
@@ -819,6 +833,8 @@ void tgp_msg_recv (struct tgl_state *TLS, struct tgl_message *M, GList *before) 
           // when fetching history. TODO: find out the reason for this behavior
           if (M->media.photo) {
             ++ C->pending;
+	    //char link[256]; link[0] = 0;
+	    //if (uploadFile(tmp, purple_imgstore_get_data(psi), purple_imgstore_get_size(psi), link, 256) && link[0] != 0) 
             tgl_do_load_photo (TLS, M->media.photo, tgp_msg_on_loaded_document, C);
           }
           break;
