@@ -493,6 +493,13 @@ static void tgp_msg_display (struct tgl_state *TLS, struct tgp_msg_loading *C) {
         if (M->media.photo) {
           g_return_if_fail(C->data != NULL);
           text = tgp_msg_photo_display (TLS, C->data, &flags);
+          if (str_not_empty (text)) {
+            if (str_not_empty (M->media.caption)) {
+              char *old = text;
+              text = g_strdup_printf ("%s<br>%s", old, M->media.caption);
+              g_free (old);
+            }
+          }
         }
         break;
       }
